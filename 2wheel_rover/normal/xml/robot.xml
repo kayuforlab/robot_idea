@@ -1,0 +1,56 @@
+<mujoco model="2wheel_rover_normal">
+  <!--
+    Differential-drive 2-wheel rover with plain (grouser-less) wheels,
+    transplanted from the "2wheel_rover" body in ../../../xml/base/normal.xml.
+    That ./xml directory is legacy prototyping material only and will
+    eventually be deleted, so this file is fully self-contained: the wheel
+    mesh lives at ./mesh/wheel.stl inside this robot's own directory.
+
+    Loaded standalone via MjSpec and attached onto sim/xml/world.xml by
+    sim/world.py, so the root body has no pos offset -- sim/world.py places
+    it via a spawn frame.
+  -->
+  <compiler angle="radian"/>
+
+  <asset>
+    <mesh name="wheel" file="mesh/wheel.stl" scale="0.001 0.001 0.001" inertia="exact" refquat="1 0 0 0"/>
+  </asset>
+
+  <worldbody>
+    <body name="2wheel_rover">
+      <joint name="body_free_joint" type="free" damping="1"/>
+
+      <body name="main_body">
+        <geom name="main_body_geom" group="2" type="cylinder" fromto="0.065 0 0 -0.065 0 0" size="0.05" mass="0.5"/>
+      </body>
+
+      <site name="marker" pos="0 -0.0005 0.001" size="0.05" type="sphere" rgba="1 0 0 1"/>
+      <site name="IMU" pos="0 0 0" size="0.01" rgba="1 0 1 1"/>
+      <site name="GYRO" pos="0 0 0" size="0.01" rgba="0 1 1 1"/>
+      <site name="VELOCITY" pos="0 0 0" size="0.01" rgba="0 1 1 1"/>
+
+      <body name="r_wheel" pos="0.07 0 0">
+        <joint name="r_wheel_joint" type="hinge" axis="-1 0 0" damping="0.3" frictionloss="0.01"/>
+        <geom name="r_wheel_geom" group="2" type="mesh" mesh="wheel" mass="0.25" pos="0 0.03 0" friction="1 0.1 0.1"/>
+      </body>
+      <body name="l_wheel" pos="-0.15 0 0">
+        <joint name="l_wheel_joint" type="hinge" axis="-1 0 0" damping="0.3" frictionloss="0.01"/>
+        <geom name="l_wheel_geom" group="2" type="mesh" mesh="wheel" mass="0.25" pos="0 0.03 0" friction="1 0.1 0.1"/>
+      </body>
+
+      <!-- trailing skid: keeps the rover from pitching over since it only has left/right wheels -->
+      <geom name="stabilizer" group="2" type="box" size="0.01 0.07 0.005" pos="0 -0.049497 -0.049497" euler="0.7853981634 0 0" mass="0.2"/>
+    </body>
+  </worldbody>
+
+  <actuator>
+    <intvelocity name="r_motor" joint="r_wheel_joint" gear="1" kp="1" actrange="-inf inf" ctrllimited="true" ctrlrange="-5.2359877 5.2359877" forcelimited="true" forcerange="-2.94 2.94"/>
+    <intvelocity name="l_motor" joint="l_wheel_joint" gear="1" kp="1" actrange="-inf inf" ctrllimited="true" ctrlrange="-5.2359877 5.2359877" forcelimited="true" forcerange="-2.94 2.94"/>
+  </actuator>
+
+  <sensor>
+    <accelerometer name="accelerometer" site="IMU"/>
+    <gyro name="gyro" site="GYRO"/>
+    <velocimeter name="velocimeter" site="VELOCITY"/>
+  </sensor>
+</mujoco>

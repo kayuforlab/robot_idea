@@ -1,0 +1,157 @@
+<mujoco model="MuJoCo Model">
+  <compiler angle="radian"/>
+
+  <visual>
+    <global offwidth="1024" offheight="1024"/>
+    <quality numslices="36"/>
+  </visual>
+
+  <default>
+    <geom type="box"/>
+  </default>
+
+  <asset>
+    <texture type="2d" colorspace="auto" name="gray_field" builtin="flat" rgb1="0.5 0.5 0.5" width="100" height="100"/>
+    <texture type="skybox" colorspace="auto" name="world_texture" builtin="gradient" rgb1="0 0.5 0.9" rgb2="1 1 1" width="100" height="600"/>
+    <material name="field_material" texture="gray_field" reflectance="0.2"/>
+    <mesh name="wheel" file="mesh/wheel.stl" inertia="exact" scale="0.001 0.001 0.001"/>
+  </asset>
+
+  <worldbody>
+    <camera name="main_cam" pos="1.5 -1.2 2.7" quat="0.939693 0.34202 0 0"/>
+    <light name="main_light" pos="0 0 3" dir="0 0 -1" type="directional" diffuse="1.5 1.5 1.5" specular="0.1 0.1 0.1"/>
+    <body name="target_body">
+      <joint name="slide_x" pos="0 0 0" axis="1 0 0" type="slide"/>
+      <joint name="slide_y" pos="0 0 0" axis="0 1 0" type="slide"/>
+      <geom name="target_box" size="0.01 0.01 0.01" contype="0" conaffinity="0"/>
+      <site name="target" pos="0 0 0" size="0.3" rgba="1 0 0 1"/>
+    </body>
+    <body name="2wheel_rover" pos="0.4 0.4 1.5">
+      <joint name="body_free_joint" type="free"/>
+      <geom name="stabilzer" size="0.01 0.07 0.005" pos="0 -0.049497 -0.049497" quat="0.92388 0.382683 0 0" mass="0.2"/>
+      <site name="IMU" pos="0 0 0" size="0.01" rgba="1 0 1 1"/>
+      <body name="main_body">
+        <geom name="main_body_geom" size="0.05 0.065" quat="0.707107 0 0.707107 0" type="cylinder" mass="0.5"/>
+      </body>
+      <body name="r_wheel" pos="0.07 0 0">
+        <joint name="r_wheel_joint" pos="0 0 0" axis="-1 0 0" damping="0.05" frictionloss="0.01"/>
+        <geom name="r_wheel_geom" type="mesh" friction="3 0.1 0.1" mass="0.25" mesh="wheel"/>
+      </body>
+      <body name="l_wheel" pos="-0.15 0 0">
+        <joint name="l_wheel_joint" pos="0 0 0" axis="-1 0 0" damping="0.05" frictionloss="0.01"/>
+        <geom name="l_wheel_geom" type="mesh" friction="3 0.1 0.1" mass="0.25" mesh="wheel"/>
+      </body>
+    </body>
+    <body name="boxy terrain" pos="1 1 0">
+      <geom size="0.1 0.1 0.0422211" pos="-0.9 0.9 0.0422211" friction="1 0.1 0.1" rgba="0.4 0.3 0.2 1"/>
+      <geom size="0.1 0.1 0.0378977" pos="-0.9 0.7 0.0378977" friction="1 0.1 0.1" rgba="0.4 0.3 0.2 1"/>
+      <geom size="0.1 0.1 0.0210286" pos="-0.9 0.5 0.0210286" friction="1 0.1 0.1" rgba="0.4 0.3 0.2 1"/>
+      <geom size="0.1 0.1 0.0129458" pos="-0.9 0.3 0.0129458" friction="1 0.1 0.1" rgba="0.4 0.3 0.2 1"/>
+      <geom size="0.1 0.1 0.0255637" pos="-0.9 0.1 0.0255637" friction="1 0.1 0.1" rgba="0.4 0.3 0.2 1"/>
+      <geom size="0.1 0.1 0.0202467" pos="-0.9 -0.1 0.0202467" friction="1 0.1 0.1" rgba="0.4 0.3 0.2 1"/>
+      <geom size="0.1 0.1 0.0391899" pos="-0.9 -0.3 0.0391899" friction="1 0.1 0.1" rgba="0.4 0.3 0.2 1"/>
+      <geom size="0.1 0.1 0.0151656" pos="-0.9 -0.5 0.0151656" friction="1 0.1 0.1" rgba="0.4 0.3 0.2 1"/>
+      <geom size="0.1 0.1 0.0238298" pos="-0.9 -0.7 0.0238298" friction="1 0.1 0.1" rgba="0.4 0.3 0.2 1"/>
+      <geom size="0.1 0.1 0.0291691" pos="-0.9 -0.9 0.0291691" friction="1 0.1 0.1" rgba="0.4 0.3 0.2 1"/>
+      <geom size="0.1 0.1 0.0454056" pos="-0.7 0.9 0.0454056" friction="1 0.1 0.1" rgba="0.4 0.3 0.2 1"/>
+      <geom size="0.1 0.1 0.0252343" pos="-0.7 0.7 0.0252343" friction="1 0.1 0.1" rgba="0.4 0.3 0.2 1"/>
+      <geom size="0.1 0.1 0.0140919" pos="-0.7 0.5 0.0140919" friction="1 0.1 0.1" rgba="0.4 0.3 0.2 1"/>
+      <geom size="0.1 0.1 0.0377902" pos="-0.7 0.3 0.0377902" friction="1 0.1 0.1" rgba="0.4 0.3 0.2 1"/>
+      <geom size="0.1 0.1 0.0309184" pos="-0.7 0.1 0.0309184" friction="1 0.1 0.1" rgba="0.4 0.3 0.2 1"/>
+      <geom size="0.1 0.1 0.0125253" pos="-0.7 -0.1 0.0125253" friction="1 0.1 0.1" rgba="0.4 0.3 0.2 1"/>
+      <geom size="0.1 0.1 0.0454873" pos="-0.7 -0.3 0.0454873" friction="1 0.1 0.1" rgba="0.4 0.3 0.2 1"/>
+      <geom size="0.1 0.1 0.0491393" pos="-0.7 -0.5 0.0491393" friction="1 0.1 0.1" rgba="0.4 0.3 0.2 1"/>
+      <geom size="0.1 0.1 0.0405109" pos="-0.7 -0.7 0.0405109" friction="1 0.1 0.1" rgba="0.4 0.3 0.2 1"/>
+      <geom size="0.1 0.1 0.0451083" pos="-0.7 -0.9 0.0451083" friction="1 0.1 0.1" rgba="0.4 0.3 0.2 1"/>
+      <geom size="0.1 0.1 0.0155074" pos="-0.5 0.9 0.0155074" friction="1 0.1 0.1" rgba="0.4 0.3 0.2 1"/>
+      <geom size="0.1 0.1 0.0364916" pos="-0.5 0.7 0.0364916" friction="1 0.1 0.1" rgba="0.4 0.3 0.2 1"/>
+      <geom size="0.1 0.1 0.0449419" pos="-0.5 0.5 0.0449419" friction="1 0.1 0.1" rgba="0.4 0.3 0.2 1"/>
+      <geom size="0.1 0.1 0.0341992" pos="-0.5 0.3 0.0341992" friction="1 0.1 0.1" rgba="0.4 0.3 0.2 1"/>
+      <geom size="0.1 0.1 0.0236071" pos="-0.5 0.1 0.0236071" friction="1 0.1 0.1" rgba="0.4 0.3 0.2 1"/>
+      <geom size="0.1 0.1 0.00503506" pos="-0.5 -0.1 0.00503506" friction="1 0.1 0.1" rgba="0.4 0.3 0.2 1"/>
+      <geom size="0.1 0.1 0.0217086" pos="-0.5 -0.3 0.0217086" friction="1 0.1 0.1" rgba="0.4 0.3 0.2 1"/>
+      <geom size="0.1 0.1 0.0305443" pos="-0.5 -0.5 0.0305443" friction="1 0.1 0.1" rgba="0.4 0.3 0.2 1"/>
+      <geom size="0.1 0.1 0.0456506" pos="-0.5 -0.7 0.0456506" friction="1 0.1 0.1" rgba="0.4 0.3 0.2 1"/>
+      <geom size="0.1 0.1 0.0483303" pos="-0.5 -0.9 0.0483303" friction="1 0.1 0.1" rgba="0.4 0.3 0.2 1"/>
+      <geom size="0.1 0.1 0.0238505" pos="-0.3 0.9 0.0238505" friction="1 0.1 0.1" rgba="0.4 0.3 0.2 1"/>
+      <geom size="0.1 0.1 0.0432655" pos="-0.3 0.7 0.0432655" friction="1 0.1 0.1" rgba="0.4 0.3 0.2 1"/>
+      <geom size="0.1 0.1 0.0130246" pos="-0.3 0.5 0.0130246" friction="1 0.1 0.1" rgba="0.4 0.3 0.2 1"/>
+      <geom size="0.1 0.1 0.0402514" pos="-0.3 0.3 0.0402514" friction="1 0.1 0.1" rgba="0.4 0.3 0.2 1"/>
+      <geom size="0.1 0.1 0.027435" pos="-0.3 0.1 0.027435" friction="1 0.1 0.1" rgba="0.4 0.3 0.2 1"/>
+      <geom size="0.1 0.1 0.000702085" pos="-0.3 -0.1 0.000702085" friction="1 0.1 0.1" rgba="0.4 0.3 0.2 1"/>
+      <geom size="0.1 0.1 0.0359852" pos="-0.3 -0.3 0.0359852" friction="1 0.1 0.1" rgba="0.4 0.3 0.2 1"/>
+      <geom size="0.1 0.1 0.0199412" pos="-0.3 -0.5 0.0199412" friction="1 0.1 0.1" rgba="0.4 0.3 0.2 1"/>
+      <geom size="0.1 0.1 0.0412422" pos="-0.3 -0.7 0.0412422" friction="1 0.1 0.1" rgba="0.4 0.3 0.2 1"/>
+      <geom size="0.1 0.1 0.0334077" pos="-0.3 -0.9 0.0334077" friction="1 0.1 0.1" rgba="0.4 0.3 0.2 1"/>
+      <geom size="0.1 0.1 5.7141e-05" pos="-0.1 0.9 5.7141e-05" friction="1 0.1 0.1" rgba="0.4 0.3 0.2 1"/>
+      <geom size="0.1 0.1 0.0246789" pos="-0.1 0.7 0.0246789" friction="1 0.1 0.1" rgba="0.4 0.3 0.2 1"/>
+      <geom size="0.1 0.1 0.0433801" pos="-0.1 0.5 0.0433801" friction="1 0.1 0.1" rgba="0.4 0.3 0.2 1"/>
+      <geom size="0.1 0.1 0.0121955" pos="-0.1 0.3 0.0121955" friction="1 0.1 0.1" rgba="0.4 0.3 0.2 1"/>
+      <geom size="0.1 0.1 0.0162602" pos="-0.1 0.1 0.0162602" friction="1 0.1 0.1" rgba="0.4 0.3 0.2 1"/>
+      <geom size="0.1 0.1 0.0435236" pos="-0.1 -0.1 0.0435236" friction="1 0.1 0.1" rgba="0.4 0.3 0.2 1"/>
+      <geom size="0.1 0.1 0.00955335" pos="-0.1 -0.3 0.00955335" friction="1 0.1 0.1" rgba="0.4 0.3 0.2 1"/>
+      <geom size="0.1 0.1 0.0283755" pos="-0.1 -0.5 0.0283755" friction="1 0.1 0.1" rgba="0.4 0.3 0.2 1"/>
+      <geom size="0.1 0.1 0.0119308" pos="-0.1 -0.7 0.0119308" friction="1 0.1 0.1" rgba="0.4 0.3 0.2 1"/>
+      <geom size="0.1 0.1 0.048377" pos="-0.1 -0.9 0.048377" friction="1 0.1 0.1" rgba="0.4 0.3 0.2 1"/>
+      <geom size="0.1 0.1 0.040159" pos="0.1 0.9 0.040159" friction="1 0.1 0.1" rgba="0.4 0.3 0.2 1"/>
+      <geom size="0.1 0.1 0.0223985" pos="0.1 0.7 0.0223985" friction="1 0.1 0.1" rgba="0.4 0.3 0.2 1"/>
+      <geom size="0.1 0.1 0.00402229" pos="0.1 0.5 0.00402229" friction="1 0.1 0.1" rgba="0.4 0.3 0.2 1"/>
+      <geom size="0.1 0.1 0.0160027" pos="0.1 0.3 0.0160027" friction="1 0.1 0.1" rgba="0.4 0.3 0.2 1"/>
+      <geom size="0.1 0.1 0.025397" pos="0.1 0.1 0.025397" friction="1 0.1 0.1" rgba="0.4 0.3 0.2 1"/>
+      <geom size="0.1 0.1 0.0466417" pos="0.1 -0.1 0.0466417" friction="1 0.1 0.1" rgba="0.4 0.3 0.2 1"/>
+      <geom size="0.1 0.1 0.00545289" pos="0.1 -0.3 0.00545289" friction="1 0.1 0.1" rgba="0.4 0.3 0.2 1"/>
+      <geom size="0.1 0.1 0.0275634" pos="0.1 -0.5 0.0275634" friction="1 0.1 0.1" rgba="0.4 0.3 0.2 1"/>
+      <geom size="0.1 0.1 0.0353281" pos="0.1 -0.7 0.0353281" friction="1 0.1 0.1" rgba="0.4 0.3 0.2 1"/>
+      <geom size="0.1 0.1 0.027372" pos="0.1 -0.9 0.027372" friction="1 0.1 0.1" rgba="0.4 0.3 0.2 1"/>
+      <geom size="0.1 0.1 0.0407233" pos="0.3 0.9 0.0407233" friction="1 0.1 0.1" rgba="0.4 0.3 0.2 1"/>
+      <geom size="0.1 0.1 0.0270142" pos="0.3 0.7 0.0270142" friction="1 0.1 0.1" rgba="0.4 0.3 0.2 1"/>
+      <geom size="0.1 0.1 0.0481919" pos="0.3 0.5 0.0481919" friction="1 0.1 0.1" rgba="0.4 0.3 0.2 1"/>
+      <geom size="0.1 0.1 0.0301593" pos="0.3 0.3 0.0301593" friction="1 0.1 0.1" rgba="0.4 0.3 0.2 1"/>
+      <geom size="0.1 0.1 0.0293809" pos="0.3 0.1 0.0293809" friction="1 0.1 0.1" rgba="0.4 0.3 0.2 1"/>
+      <geom size="0.1 0.1 0.0222495" pos="0.3 -0.1 0.0222495" friction="1 0.1 0.1" rgba="0.4 0.3 0.2 1"/>
+      <geom size="0.1 0.1 0.0298143" pos="0.3 -0.3 0.0298143" friction="1 0.1 0.1" rgba="0.4 0.3 0.2 1"/>
+      <geom size="0.1 0.1 0.0192451" pos="0.3 -0.5 0.0192451" friction="1 0.1 0.1" rgba="0.4 0.3 0.2 1"/>
+      <geom size="0.1 0.1 0.0287826" pos="0.3 -0.7 0.0287826" friction="1 0.1 0.1" rgba="0.4 0.3 0.2 1"/>
+      <geom size="0.1 0.1 0.0145165" pos="0.3 -0.9 0.0145165" friction="1 0.1 0.1" rgba="0.4 0.3 0.2 1"/>
+      <geom size="0.1 0.1 0.00946957" pos="0.5 0.9 0.00946957" friction="1 0.1 0.1" rgba="0.4 0.3 0.2 1"/>
+      <geom size="0.1 0.1 0.00933648" pos="0.5 0.7 0.00933648" friction="1 0.1 0.1" rgba="0.4 0.3 0.2 1"/>
+      <geom size="0.1 0.1 0.0306387" pos="0.5 0.5 0.0306387" friction="1 0.1 0.1" rgba="0.4 0.3 0.2 1"/>
+      <geom size="0.1 0.1 0.032833" pos="0.5 0.3 0.032833" friction="1 0.1 0.1" rgba="0.4 0.3 0.2 1"/>
+      <geom size="0.1 0.1 0.0238265" pos="0.5 0.1 0.0238265" friction="1 0.1 0.1" rgba="0.4 0.3 0.2 1"/>
+      <geom size="0.1 0.1 0.00449122" pos="0.5 -0.1 0.00449122" friction="1 0.1 0.1" rgba="0.4 0.3 0.2 1"/>
+      <geom size="0.1 0.1 0.0378802" pos="0.5 -0.3 0.0378802" friction="1 0.1 0.1" rgba="0.4 0.3 0.2 1"/>
+      <geom size="0.1 0.1 0.0438385" pos="0.5 -0.5 0.0438385" friction="1 0.1 0.1" rgba="0.4 0.3 0.2 1"/>
+      <geom size="0.1 0.1 0.0461691" pos="0.5 -0.7 0.0461691" friction="1 0.1 0.1" rgba="0.4 0.3 0.2 1"/>
+      <geom size="0.1 0.1 0.042123" pos="0.5 -0.9 0.042123" friction="1 0.1 0.1" rgba="0.4 0.3 0.2 1"/>
+      <geom size="0.1 0.1 0.0449087" pos="0.7 0.9 0.0449087" friction="1 0.1 0.1" rgba="0.4 0.3 0.2 1"/>
+      <geom size="0.1 0.1 0.0461541" pos="0.7 0.7 0.0461541" friction="1 0.1 0.1" rgba="0.4 0.3 0.2 1"/>
+      <geom size="0.1 0.1 0.02703" pos="0.7 0.5 0.02703" friction="1 0.1 0.1" rgba="0.4 0.3 0.2 1"/>
+      <geom size="0.1 0.1 0.0195648" pos="0.7 0.3 0.0195648" friction="1 0.1 0.1" rgba="0.4 0.3 0.2 1"/>
+      <geom size="0.1 0.1 0.0352642" pos="0.7 0.1 0.0352642" friction="1 0.1 0.1" rgba="0.4 0.3 0.2 1"/>
+      <geom size="0.1 0.1 0.0137817" pos="0.7 -0.1 0.0137817" friction="1 0.1 0.1" rgba="0.4 0.3 0.2 1"/>
+      <geom size="0.1 0.1 0.0405814" pos="0.7 -0.3 0.0405814" friction="1 0.1 0.1" rgba="0.4 0.3 0.2 1"/>
+      <geom size="0.1 0.1 0.0424743" pos="0.7 -0.5 0.0424743" friction="1 0.1 0.1" rgba="0.4 0.3 0.2 1"/>
+      <geom size="0.1 0.1 0.0447519" pos="0.7 -0.7 0.0447519" friction="1 0.1 0.1" rgba="0.4 0.3 0.2 1"/>
+      <geom size="0.1 0.1 0.0294901" pos="0.7 -0.9 0.0294901" friction="1 0.1 0.1" rgba="0.4 0.3 0.2 1"/>
+      <geom size="0.1 0.1 0.0474882" pos="0.9 0.9 0.0474882" friction="1 0.1 0.1" rgba="0.4 0.3 0.2 1"/>
+      <geom size="0.1 0.1 0.0289848" pos="0.9 0.7 0.0289848" friction="1 0.1 0.1" rgba="0.4 0.3 0.2 1"/>
+      <geom size="0.1 0.1 0.0225282" pos="0.9 0.5 0.0225282" friction="1 0.1 0.1" rgba="0.4 0.3 0.2 1"/>
+      <geom size="0.1 0.1 0.0330123" pos="0.9 0.3 0.0330123" friction="1 0.1 0.1" rgba="0.4 0.3 0.2 1"/>
+      <geom size="0.1 0.1 0.0498129" pos="0.9 0.1 0.0498129" friction="1 0.1 0.1" rgba="0.4 0.3 0.2 1"/>
+      <geom size="0.1 0.1 0.0458471" pos="0.9 -0.1 0.0458471" friction="1 0.1 0.1" rgba="0.4 0.3 0.2 1"/>
+      <geom size="0.1 0.1 0.0396663" pos="0.9 -0.3 0.0396663" friction="1 0.1 0.1" rgba="0.4 0.3 0.2 1"/>
+      <geom size="0.1 0.1 0.00411865" pos="0.9 -0.5 0.00411865" friction="1 0.1 0.1" rgba="0.4 0.3 0.2 1"/>
+      <geom size="0.1 0.1 0.0306392" pos="0.9 -0.7 0.0306392" friction="1 0.1 0.1" rgba="0.4 0.3 0.2 1"/>
+      <geom size="0.1 0.1 0.0243222" pos="0.9 -0.9 0.0243222" friction="1 0.1 0.1" rgba="0.4 0.3 0.2 1"/>
+    </body>
+  </worldbody>
+
+  <actuator>
+    <general name="r_motor" joint="r_wheel_joint" ctrllimited="true" ctrlrange="-3.14159 3.14159" forcelimited="true" forcerange="-1 1" biastype="affine" gainprm="0.9" biasprm="0 0 -0.9"/>
+    <general name="l_motor" joint="l_wheel_joint" ctrllimited="true" ctrlrange="-3.14159 3.14159" forcelimited="true" forcerange="-1 1" biastype="affine" gainprm="0.9" biasprm="0 0 -0.9"/>
+  </actuator>
+
+  <sensor>
+    <accelerometer site="IMU" name="accelerometer"/>
+  </sensor>
+</mujoco>
