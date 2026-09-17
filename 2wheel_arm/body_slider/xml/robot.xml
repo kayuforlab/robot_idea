@@ -1,0 +1,140 @@
+<mujoco model="2wheel_arm_body_slider">
+  <!--
+    Simplified per instruction: main_body is fixed (single object, no joint
+    of its own), and the ROD itself (r_arm/l_arm, carrying the rod geom
+    r_arm_geom/l_arm_geom) has the slide joint directly, rather than a
+    separate carriage/"slider" object sliding along a fixed rod. The wheel
+    is a rigid child of the rod, so it moves together with the rod as it
+    slides. This replaces an earlier version that used a distinct
+    r_body_half/l_body_half carriage riding on a fixed rod -- that
+    introduced an object/mechanism ("slider") beyond what was asked for;
+    this version is the direct thing: body fixed, rod slides, nothing
+    else.
+
+    main_body/r_arm/l_arm are still nested (main_body is r_arm's and
+    l_arm's parent) so there is one connected, visible chassis -- but now
+    only main_body itself has zero joints (r_arm/l_arm each have their own
+    slide joint), so main_body is the single fixed/never-moving/never-
+    tilting body, and r_arm+r_wheel / l_arm+l_wheel are the two
+    independently-sliding rod+wheel assemblies.
+
+    range="-0.2408319 0": qpos=0 is the rod at its full nominal extension
+    (the geometry as written, i.e. same look as every earlier
+    non-collision-limited version), negative qpos retracts the whole
+    rod+wheel back toward main_body. This range never risks colliding with
+    main_body regardless of how far it retracts: the slide axis (0, 0.16,
+    -0.18) has no x-component, so the rod+wheel only ever move in y/z,
+    remaining at their mount's x position (+/-0.11) the entire time, which
+    is outside main_body's own axial extent (+/-0.0975) at any qpos.
+
+    r_arm_motor/l_arm_motor are independent <position> actuators, one per
+    side. gear=-4.1522738 (negative, since ctrl=0 maps to qpos=0 -- the
+    range's upper bound -- and ctrl=1 maps to qpos=-0.2408319, the lower
+    bound; a positive gear would target qpos=+0.2408319, outside the
+    range). kp/kv/timeconst are the same values used throughout this
+    variant's history for this gear magnitude (kp=100, kv=3.48,
+    timeconst=0.5 -- see wheel_slider's comments for why <position> over
+    <intvelocity> and the kp/kv-vs-gear^2 reasoning). Reverified
+    independent control (each side driven separately and together) settles
+    without oscillation, with gravity and the voxel terrain.
+
+    marker/IMU/GYRO/VELOCITY sites live on main_body -- the one genuinely
+    fixed, unified chassis piece.
+
+    stabilizer geom removed per earlier instruction -- no longer needed now
+    that the body isn't rigidly fixed to the wheel axle line.
+
+    Wheel size/mesh is shared with 2wheel_rover/normal (./mesh/wheel.stl,
+    copied verbatim); white wheels, same as the other 2wheel_arm variants.
+
+    Self-contained (mesh lives under this robot's own directory) so it can be
+    loaded standalone via MjSpec and attached onto sim/xml/world.xml by
+    sim/world.py -- the root body has no pos offset, sim/world.py places it
+    via a spawn frame.
+
+    r_motor/l_motor drive wheel spin (the project convention: sim/simulate.py
+    only ever commands these two, and never touches r_arm_motor/
+    l_arm_motor, so with ctrl defaulting to 0 both rods rest at their
+    fully-extended, unslid position).
+  -->
+  <compiler angle="radian"/>
+
+  <asset>
+    <mesh name="wheel" file="mesh/wheel.stl" scale="0.001 0.001 0.001" inertia="exact" refquat="1 0 0 0"/>
+  </asset>
+
+  <worldbody>
+    <body name="2wheel_arm">
+      <joint name="body_free_joint" type="free" damping="1"/>
+
+      <body name="main_body" pos="0 0 0">
+        <!-- same cylinder as 2wheel_rover's main_body_geom (radius 0.05), but 1.5x the width: half-length 0.065*1.5=0.0975. r_arm/l_arm below have no joint of their own, so they and this cylinder all get composited into ONE rigid body -- this is the single "剛体" the sliders are mounted on -->
+        <geom name="main_body_geom" group="2" type="cylinder" fromto="0.0975 0 0 -0.0975 0 0" size="0.05" mass="0.5"/>
+
+        <site name="marker" pos="0 -0.0005 0.001" size="0.05" type="sphere" rgba="1 0 0 1"/>
+        <site name="IMU" pos="0 0 0" size="0.01" rgba="1 0 1 1"/>
+        <site name="GYRO" pos="0 0 0" size="0.01" rgba="0 1 1 1"/>
+        <site name="VELOCITY" pos="0 0 0" size="0.01" rgba="0 1 1 1"/>
+
+        <!--
+          The "wheel" mesh asset's own file-origin is not at its geometric center:
+          MuJoCo's mesh compiler bakes a +0.04 shift into every geom's x position
+          at compile time regardless of what pos is written here (confirmed
+          empirically -- 2wheel_rover/normal compensates for this with asymmetric
+          wheel mount offsets, 0.07 vs -0.15). Here we cancel it directly on the
+          geom (pos="-0.04 0 0") so the mesh's geometric center lands exactly on
+          the wheel joint's rotation axis (which passes through the wheel body's
+          own origin) -- any nonzero y/z here would put the disc off-axis and
+          make it spin eccentrically (wobble), which is not needed/wanted.
+        -->
+        <body name="r_arm" pos="0.11 0 0">
+          <!--
+            The rod itself slides relative to main_body (not a separate carriage) -- qpos=0 is
+            the rod fully extended (its geom's fromto below), negative qpos retracts the whole
+            rod+wheel back toward main_body. The rod's own length is unchanged (0.2408319,
+            matching the joint's travel exactly, not stretched) -- instead the wheel alone is
+            offset by an extra 0.035 in x (away from main_body's own axis), just enough to clear
+            it: main_body's axial reach is x<=0.0975, the wheel's own mesh is ~0.04 thick along
+            x, and at full retraction the wheel's un-shifted x was 0.11 (only 0.0125 past
+            main_body's edge, well inside the wheel's own thickness) -- empirically sweeping the
+            x offset in isolation (a minimal repro model, contact-checked across the whole
+            -0.2408319..0 range at 0.0012 resolution) found collision at 0.025, clear at 0.028;
+            0.035 keeps a small margin above that without adding any extra reach along the rod's
+            own direction, i.e. "干渉しない程度" -- the minimum needed to stop interfering, not
+            a large arbitrary stretch (see the rejected 0.15m-longer-rod version below in this
+            file's git history for the discarded larger-than-necessary approach).
+          -->
+          <joint name="r_arm_joint" type="slide" axis="0 0.16 -0.18" limited="true" range="-0.2408319 0" damping="0.3" frictionloss="0.01"/>
+          <geom name="r_arm_geom" group="2" type="capsule" fromto="0 0 0 0 0.16 -0.18" size="0.012" mass="0.1"/>
+          <body name="r_wheel" pos="0.035 0.16 -0.18">
+            <joint name="r_wheel_joint" type="hinge" axis="-1 0 0" damping="0.3" frictionloss="0.01"/>
+            <geom name="r_wheel_geom" group="2" type="mesh" mesh="wheel" mass="0.25" pos="-0.04 0 0" rgba="1 1 1 1" friction="1 0.1 0.1"/>
+          </body>
+        </body>
+
+        <body name="l_arm" pos="-0.11 0 0">
+          <!-- mirror of r_arm: rod length unchanged, l_wheel offset -0.035 in x (away from main_body, toward -x on this side) for the same minimal clearance reason -->
+          <joint name="l_arm_joint" type="slide" axis="0 0.16 -0.18" limited="true" range="-0.2408319 0" damping="0.3" frictionloss="0.01"/>
+          <geom name="l_arm_geom" group="2" type="capsule" fromto="0 0 0 0 0.16 -0.18" size="0.012" mass="0.1"/>
+          <body name="l_wheel" pos="-0.035 0.16 -0.18">
+            <joint name="l_wheel_joint" type="hinge" axis="-1 0 0" damping="0.3" frictionloss="0.01"/>
+            <geom name="l_wheel_geom" group="2" type="mesh" mesh="wheel" mass="0.25" pos="-0.04 0 0" rgba="1 1 1 1" friction="1 0.1 0.1"/>
+          </body>
+        </body>
+      </body>
+    </body>
+  </worldbody>
+
+  <actuator>
+    <intvelocity name="r_motor" joint="r_wheel_joint" gear="1" kp="1" actrange="-inf inf" ctrllimited="true" ctrlrange="-5.2359877 5.2359877" forcelimited="true" forcerange="-2.94 2.94"/>
+    <intvelocity name="l_motor" joint="l_wheel_joint" gear="1" kp="1" actrange="-inf inf" ctrllimited="true" ctrlrange="-5.2359877 5.2359877" forcelimited="true" forcerange="-2.94 2.94"/>
+    <position name="r_arm_motor" joint="r_arm_joint" gear="-4.1522738" kp="100" kv="3.48" timeconst="0.5" ctrllimited="true" ctrlrange="0 1" forcelimited="true" forcerange="-30 30"/>
+    <position name="l_arm_motor" joint="l_arm_joint" gear="-4.1522738" kp="100" kv="3.48" timeconst="0.5" ctrllimited="true" ctrlrange="0 1" forcelimited="true" forcerange="-30 30"/>
+  </actuator>
+
+  <sensor>
+    <accelerometer name="accelerometer" site="IMU"/>
+    <gyro name="gyro" site="GYRO"/>
+    <velocimeter name="velocimeter" site="VELOCITY"/>
+  </sensor>
+</mujoco>

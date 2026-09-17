@@ -1,9 +1,10 @@
-"""Assemble a full MuJoCo model: base scene + voxel terrain + one robot.
+"""Assemble a full MuJoCo model: base scene + terrain + one robot.
 
 Robots are stored per the project convention ./<robot_name>/xml/robot.xml.
 This module loads that file as its own MjSpec and attaches it onto the
 base world scene (sim/xml/world.xml) at a chosen spawn frame, after adding
-procedurally generated voxel terrain.
+procedurally generated terrain (see sim/terrain.py for the available
+terrain types).
 """
 
 from __future__ import annotations
@@ -12,7 +13,7 @@ from pathlib import Path
 
 import mujoco
 
-from sim.terrain import VoxelTerrainConfig, add_voxel_terrain
+from sim.terrain import TerrainConfig, VoxelTerrainConfig, add_terrain
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 WORLD_XML = Path(__file__).resolve().parent / "xml" / "world.xml"
@@ -24,7 +25,7 @@ def robot_xml_path(robot_name: str) -> Path:
 
 def build_model(
     robot_name: str,
-    terrain_config: VoxelTerrainConfig | None = None,
+    terrain_config: TerrainConfig | None = None,
     spawn_pos: tuple[float, float, float] = (0.0, 0.0, 0.3),
 ) -> mujoco.MjModel:
     """Build the combined MjModel for `robot_name` on generated terrain."""
@@ -32,7 +33,7 @@ def build_model(
         terrain_config = VoxelTerrainConfig()
 
     world_spec = mujoco.MjSpec.from_file(str(WORLD_XML))
-    add_voxel_terrain(world_spec, terrain_config)
+    add_terrain(world_spec, terrain_config)
 
     robot_path = robot_xml_path(robot_name)
     if not robot_path.exists():

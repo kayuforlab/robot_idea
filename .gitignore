@@ -8,3 +8,9 @@ wheels/
 
 # Virtual environments
 .venv
+
+# MuJoCo runtime warning log
+MUJOCO_LOG.TXT
+
+# Windows NTFS zone-identifier artifacts from files copied over WSL
+*:Zone.Identifier

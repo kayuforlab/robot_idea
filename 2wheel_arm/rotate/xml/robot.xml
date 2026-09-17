@@ -1,0 +1,95 @@
+<mujoco model="2wheel_arm_rotate">
+  <!--
+    Differential-drive rover where each wheel sits at the tip of a powered arm
+    (hinge joint at the shoulder) instead of mounting directly on the body,
+    based on a hand sketch: a long chassis with a left/right pair of arms
+    swinging in the fore-aft/vertical plane, each ending in a wheel.
+
+    "rotate" variant: the body-arm joint is a hinge (see 2wheel_arm/slider for
+    the sibling variant where it's a prismatic slide instead).
+
+    Wheel size/mesh is shared with 2wheel_rover/normal (./mesh/wheel.stl,
+    copied verbatim) so the wheels are the same size; colored white here.
+
+    Self-contained (mesh lives under this robot's own directory) so it can be
+    loaded standalone via MjSpec and attached onto sim/xml/world.xml by
+    sim/world.py -- the root body has no pos offset, sim/world.py places it
+    via a spawn frame.
+
+    r_motor/l_motor drive wheel spin (the project convention: sim/simulate.py
+    only ever commands these two). The shoulder joints are separately
+    actuated (r_arm_motor/l_arm_motor), set up identically to the wheel
+    motors (same intvelocity params, same joint damping/frictionloss) and
+    with no joint range/limited attribute so they can spin fully and
+    continuously just like the wheels -- simulate.py never sends them a
+    nonzero ctrl though, so with the intvelocity actuator's zero-velocity
+    default they simply hold at their resting angle (defined below via the
+    arm geom's fromto) until something else drives them.
+  -->
+  <compiler angle="radian"/>
+
+  <asset>
+    <mesh name="wheel" file="mesh/wheel.stl" scale="0.001 0.001 0.001" inertia="exact" refquat="1 0 0 0"/>
+  </asset>
+
+  <worldbody>
+    <body name="2wheel_arm">
+      <joint name="body_free_joint" type="free" damping="1"/>
+
+      <body name="main_body">
+        <!-- same cylinder as 2wheel_rover's main_body_geom (radius 0.05), but 1.5x the width: half-length 0.065*1.5=0.0975 -->
+        <geom name="main_body_geom" group="2" type="cylinder" fromto="0.0975 0 0 -0.0975 0 0" size="0.05" mass="0.5"/>
+      </body>
+
+      <site name="marker" pos="0 -0.0005 0.001" size="0.05" type="sphere" rgba="1 0 0 1"/>
+      <site name="IMU" pos="0 0 0" size="0.01" rgba="1 0 1 1"/>
+      <site name="GYRO" pos="0 0 0" size="0.01" rgba="0 1 1 1"/>
+      <site name="VELOCITY" pos="0 0 0" size="0.01" rgba="0 1 1 1"/>
+
+      <!--
+        The "wheel" mesh asset's own file-origin is not at its geometric center:
+        MuJoCo's mesh compiler bakes a +0.04 shift into every geom's x position
+        at compile time regardless of what pos is written here (confirmed
+        empirically -- 2wheel_rover/normal compensates for this with asymmetric
+        wheel mount offsets, 0.07 vs -0.15). Here we cancel it directly on the
+        geom (pos="-0.04 0 0") so the mesh's geometric center lands exactly on
+        the wheel joint's rotation axis (which passes through the wheel body's
+        own origin) -- any nonzero y/z here would put the disc off-axis and
+        make it spin eccentrically (wobble), which is not needed/wanted.
+      -->
+      <body name="r_arm" pos="0.11 0 0">
+        <joint name="r_arm_joint" type="hinge" axis="-1 0 0" pos="0 0 0" damping="0.3" frictionloss="0.01"/>
+        <geom name="r_arm_geom" group="2" type="capsule" fromto="0 0 0 0 0.16 -0.18" size="0.012" mass="0.1"/>
+        <body name="r_wheel" pos="0 0.16 -0.18">
+          <joint name="r_wheel_joint" type="hinge" axis="-1 0 0" damping="0.3" frictionloss="0.01"/>
+          <geom name="r_wheel_geom" group="2" type="mesh" mesh="wheel" mass="0.25" pos="-0.04 0 0" rgba="1 1 1 1" friction="1 0.1 0.1"/>
+        </body>
+      </body>
+
+      <body name="l_arm" pos="-0.11 0 0">
+        <joint name="l_arm_joint" type="hinge" axis="-1 0 0" pos="0 0 0" damping="0.3" frictionloss="0.01"/>
+        <geom name="l_arm_geom" group="2" type="capsule" fromto="0 0 0 0 0.16 -0.18" size="0.012" mass="0.1"/>
+        <body name="l_wheel" pos="0 0.16 -0.18">
+          <joint name="l_wheel_joint" type="hinge" axis="-1 0 0" damping="0.3" frictionloss="0.01"/>
+          <geom name="l_wheel_geom" group="2" type="mesh" mesh="wheel" mass="0.25" pos="-0.04 0 0" rgba="1 1 1 1" friction="1 0.1 0.1"/>
+        </body>
+      </body>
+
+      <!-- trailing skid: still only left/right ground contacts (wheels are colinear along x), so pitch stabilization is needed just like 2wheel_rover -->
+      <geom name="stabilizer" group="2" type="box" size="0.01 0.07 0.005" pos="0 -0.09 -0.06" euler="0.7853981634 0 0" mass="0.2"/>
+    </body>
+  </worldbody>
+
+  <actuator>
+    <intvelocity name="r_motor" joint="r_wheel_joint" gear="1" kp="1" actrange="-inf inf" ctrllimited="true" ctrlrange="-5.2359877 5.2359877" forcelimited="true" forcerange="-2.94 2.94"/>
+    <intvelocity name="l_motor" joint="l_wheel_joint" gear="1" kp="1" actrange="-inf inf" ctrllimited="true" ctrlrange="-5.2359877 5.2359877" forcelimited="true" forcerange="-2.94 2.94"/>
+    <intvelocity name="r_arm_motor" joint="r_arm_joint" gear="1" kp="1" actrange="-inf inf" ctrllimited="true" ctrlrange="-5.2359877 5.2359877" forcelimited="true" forcerange="-2.94 2.94"/>
+    <intvelocity name="l_arm_motor" joint="l_arm_joint" gear="1" kp="1" actrange="-inf inf" ctrllimited="true" ctrlrange="-5.2359877 5.2359877" forcelimited="true" forcerange="-2.94 2.94"/>
+  </actuator>
+
+  <sensor>
+    <accelerometer name="accelerometer" site="IMU"/>
+    <gyro name="gyro" site="GYRO"/>
+    <velocimeter name="velocimeter" site="VELOCITY"/>
+  </sensor>
+</mujoco>

@@ -1,0 +1,125 @@
+<mujoco model="2wheel_arm_body_slider_rotate">
+  <!--
+    Combines 2wheel_arm/body_slider (fixed main_body, rod slides relative to
+    it) with 2wheel_arm/rotate (unlimited hinge at the body-arm joint):
+    r_arm/l_arm each now carry TWO joints instead of one -- a hinge (the
+    rotate function, unlimited, same as rotate's r_arm_joint/l_arm_joint)
+    listed first, and the slide (the body_slider function) listed second.
+
+    Joint order matters here, not just for readability: MuJoCo composes
+    multiple joints on one body as a serial chain, where each joint's axis
+    is expressed in the frame *after* the preceding joints are applied (
+    confirmed empirically: rotating a hinge 90 degrees about z, then
+    "sliding" along a nominal local-x axis, actually moves the body along
+    world-y, not world-x). Listing the hinge first and the slide second
+    means the slide's direction rotates along with the arm -- i.e. sliding
+    always moves the wheel along whatever direction the arm is *currently*
+    pointing, exactly like a leg that can both swing and telescope. Listing
+    them the other way around would instead make the arm swing around a
+    slide-shifted pivot, which is a different (and less natural) mechanism.
+
+    The rotate joint (r_arm_rotate_joint/l_arm_rotate_joint) has no
+    range/limited attribute, matching 2wheel_arm/rotate's requirement that
+    this joint spin fully and continuously. The slide joint
+    (r_arm_slide_joint/l_arm_slide_joint) keeps body_slider's
+    range="-0.2408319 0" (qpos=0 fully extended, negative retracts toward
+    main_body) and the same 0.035-in-x wheel offset to clear main_body at
+    full retraction -- that offset was tuned for the slide-only case (arm
+    not rotated); with rotation added, the wheel can in principle be swung
+    to angles/retraction combinations that offset wasn't checked against,
+    so unlike body_slider this variant does not claim a collision-free
+    guarantee across the full 2D (rotation x retraction) space -- the
+    contact solver handles whatever the actual commanded combination turns
+    out to require, same as every other collision-adjacent case in this
+    project where an explicit guarantee wasn't requested.
+
+    r_arm_rotate_motor/l_arm_rotate_motor: <intvelocity>, same parameters
+    as rotate's r_arm_motor/l_arm_motor (gear=1, kp=1, ctrlrange
+    +/-5.2359877, forcerange +/-2.94) -- matches rotate's "spin like a
+    wheel" style per that variant's own instruction.
+    r_arm_slide_motor/l_arm_slide_motor: <position>, same parameters as
+    body_slider's r_arm_motor/l_arm_motor (gear=-4.1522738, kp=100,
+    kv=3.48, timeconst=0.5, ctrlrange 0..1) -- see wheel_slider's/
+    body_slider's comments for the derivation.
+
+    r_motor/l_motor drive wheel spin (the project convention). None of the
+    four arm actuators are touched by sim/simulate.py, so with ctrl
+    defaulting to 0 the rotate joints hold their rest angle (0 rad, arm
+    geometry as authored below) and the slide joints hold fully extended
+    (qpos=0), same rest pose as body_slider.
+
+    Everything else (main_body sizing/fixed-ness, wheel mesh/eccentricity
+    handling, marker/IMU placement, no stabilizer) is unchanged from
+    body_slider -- see that file's own history for the reasoning behind
+    each of those choices.
+  -->
+  <compiler angle="radian"/>
+
+  <asset>
+    <mesh name="wheel" file="mesh/wheel.stl" scale="0.001 0.001 0.001" inertia="exact" refquat="1 0 0 0"/>
+  </asset>
+
+  <worldbody>
+    <body name="2wheel_arm">
+      <joint name="body_free_joint" type="free" damping="1"/>
+
+      <body name="main_body" pos="0 0 0">
+        <!-- same cylinder as 2wheel_rover's main_body_geom (radius 0.05), but 1.5x the width: half-length 0.065*1.5=0.0975. r_arm/l_arm below have joints of their own, so main_body alone forms the single fixed/never-moving body -->
+        <geom name="main_body_geom" group="2" type="cylinder" fromto="0.0975 0 0 -0.0975 0 0" size="0.05" mass="0.5"/>
+
+        <site name="marker" pos="0 -0.0005 0.001" size="0.05" type="sphere" rgba="1 0 0 1"/>
+        <site name="IMU" pos="0 0 0" size="0.01" rgba="1 0 1 1"/>
+        <site name="GYRO" pos="0 0 0" size="0.01" rgba="0 1 1 1"/>
+        <site name="VELOCITY" pos="0 0 0" size="0.01" rgba="0 1 1 1"/>
+
+        <!--
+          The "wheel" mesh asset's own file-origin is not at its geometric center:
+          MuJoCo's mesh compiler bakes a +0.04 shift into every geom's x position
+          at compile time regardless of what pos is written here (confirmed
+          empirically -- 2wheel_rover/normal compensates for this with asymmetric
+          wheel mount offsets, 0.07 vs -0.15). Here we cancel it directly on the
+          geom (pos="-0.04 0 0") so the mesh's geometric center lands exactly on
+          the wheel joint's rotation axis (which passes through the wheel body's
+          own origin) -- any nonzero y/z here would put the disc off-axis and
+          make it spin eccentrically (wobble), which is not needed/wanted.
+        -->
+        <body name="r_arm" pos="0.11 0 0">
+          <!-- hinge first (rotate, unlimited), slide second (body_slider, range-limited) -- see top comment for why the order matters -->
+          <joint name="r_arm_rotate_joint" type="hinge" axis="-1 0 0" damping="0.3" frictionloss="0.01"/>
+          <joint name="r_arm_slide_joint" type="slide" axis="0 0.16 -0.18" limited="true" range="-0.2408319 0" damping="0.3" frictionloss="0.01"/>
+          <geom name="r_arm_geom" group="2" type="capsule" fromto="0 0 0 0 0.16 -0.18" size="0.012" mass="0.1"/>
+          <body name="r_wheel" pos="0.035 0.16 -0.18">
+            <joint name="r_wheel_joint" type="hinge" axis="-1 0 0" damping="0.3" frictionloss="0.01"/>
+            <geom name="r_wheel_geom" group="2" type="mesh" mesh="wheel" mass="0.25" pos="-0.04 0 0" rgba="1 1 1 1" friction="1 0.1 0.1"/>
+          </body>
+        </body>
+
+        <body name="l_arm" pos="-0.11 0 0">
+          <!-- mirror of r_arm -->
+          <joint name="l_arm_rotate_joint" type="hinge" axis="-1 0 0" damping="0.3" frictionloss="0.01"/>
+          <joint name="l_arm_slide_joint" type="slide" axis="0 0.16 -0.18" limited="true" range="-0.2408319 0" damping="0.3" frictionloss="0.01"/>
+          <geom name="l_arm_geom" group="2" type="capsule" fromto="0 0 0 0 0.16 -0.18" size="0.012" mass="0.1"/>
+          <body name="l_wheel" pos="-0.035 0.16 -0.18">
+            <joint name="l_wheel_joint" type="hinge" axis="-1 0 0" damping="0.3" frictionloss="0.01"/>
+            <geom name="l_wheel_geom" group="2" type="mesh" mesh="wheel" mass="0.25" pos="-0.04 0 0" rgba="1 1 1 1" friction="1 0.1 0.1"/>
+          </body>
+        </body>
+      </body>
+    </body>
+  </worldbody>
+
+  <actuator>
+    <intvelocity name="r_motor" joint="r_wheel_joint" gear="1" kp="1" actrange="-inf inf" ctrllimited="true" ctrlrange="-5.2359877 5.2359877" forcelimited="true" forcerange="-2.94 2.94"/>
+    <intvelocity name="l_motor" joint="l_wheel_joint" gear="1" kp="1" actrange="-inf inf" ctrllimited="true" ctrlrange="-5.2359877 5.2359877" forcelimited="true" forcerange="-2.94 2.94"/>
+    <intvelocity name="r_arm_rotate_motor" joint="r_arm_rotate_joint" gear="1" kp="1" actrange="-inf inf" ctrllimited="true" ctrlrange="-5.2359877 5.2359877" forcelimited="true" forcerange="-2.94 2.94"/>
+    <intvelocity name="l_arm_rotate_motor" joint="l_arm_rotate_joint" gear="1" kp="1" actrange="-inf inf" ctrllimited="true" ctrlrange="-5.2359877 5.2359877" forcelimited="true" forcerange="-2.94 2.94"/>
+    <position name="r_arm_slide_motor" joint="r_arm_slide_joint" gear="-4.1522738" kp="100" kv="3.48" timeconst="0.5" ctrllimited="true" ctrlrange="0 1" forcelimited="true" forcerange="-30 30"/>
+    <position name="l_arm_slide_motor" joint="l_arm_slide_joint" gear="-4.1522738" kp="100" kv="3.48" timeconst="0.5" ctrllimited="true" ctrlrange="0 1" forcelimited="true" forcerange="-30 30"/>
+  </actuator>
+
+  <sensor>
+    <accelerometer name="accelerometer" site="IMU"/>
+    <gyro name="gyro" site="GYRO"/>
+    <velocimeter name="velocimeter" site="VELOCITY"/>
+  </sensor>
+</mujoco>

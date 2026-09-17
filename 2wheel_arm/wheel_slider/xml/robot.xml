@@ -1,0 +1,132 @@
+<mujoco model="2wheel_arm_slider">
+  <!--
+    Sibling of 2wheel_arm/rotate: same body + fixed-direction arm layout, but
+    the arm-side joint is a prismatic slide instead of a hinge. The arm itself
+    is rigidly welded to the body (no joint on r_arm/l_arm); instead the
+    wheel carriage slides back and forth along the arm's own straight line,
+    from the arm's base (near the body, qpos=0) out to the wheel's fully
+    extended position at the arm's tip (qpos=0.2408319, the arm's length).
+    Unlike the rotate variant's shoulder hinge, a physical linear rail has a
+    real mechanical start/end, so this joint is deliberately range-limited
+    rather than left unbounded.
+
+    r_arm_motor/l_arm_motor are <position> actuators with gear=4.1522738 (the
+    reciprocal of the joint's range, 1/0.2408319 -- MuJoCo's position actuator
+    holds ctrl == gear*qpos at equilibrium, so the gear needs to be the
+    inverse of the physical range for ctrl to land in [0, 1]), so ctrl in
+    [0, 1] maps linearly onto qpos in [0, 0.2408319] -- ctrl=0 is the arm
+    base, ctrl=1 is the tip, exactly the "0-1 along the arm" control the
+    slide is meant to expose. An earlier version used an <intvelocity>
+    actuator (matching the wheel motors' style), but that has its own
+    internal integrator state acting as a second spring in series with the
+    joint's damping, which combined with a high kp made the carriage bounce
+    like a spring instead of settling. A plain <position> actuator has no
+    such internal state -- ctrl is the target length directly -- and kv adds
+    explicit velocity feedback (a real PD controller).
+
+    kp=100/kv=3.48 were tuned empirically, not guessed -- MuJoCo's position
+    actuator force is gear*(kp*(ctrl - gear*qpos) - kv*gear*qvel), so the
+    *effective* joint-space stiffness/damping are kp*gear^2 and kv*gear^2
+    (gear=4.15 -> gear^2=17.24). kp=100 alone (effective ~1724 N/m) is not
+    the problem -- a swept test with a critically-damped kv (~47, effective)
+    held it rock solid up to kp=1600 with zero oscillation. What actually
+    caused the spring-like bounce was kv too large relative to kp/inertia
+    (effective kv ~200-300, i.e. actuator kv ~12-17): with the simulation's
+    explicit-Euler integrator, a damping force computed from the *start*
+    of the timestep's velocity can overshoot and flip its own sign once kv
+    gets that large, which reintroduces oscillation instead of removing it
+    -- confirmed by sweeping kv at fixed kp=1724 and seeing the same
+    instability reappear only above ~kv=200. kv=3.48 (effective ~60, a bit
+    above critical for margin) stays clear of that band. Verified end to end
+    via build_model with gravity and the voxel terrain: resting at ctrl=0
+    sags ~0.9mm off the base (negligible), and commanding ctrl=1 reaches the
+    tip (qpos=0.241) with zero measurable oscillation.
+
+    timeconst="0.5" adds a first-order low-pass filter (dyntype=filterexact)
+    between ctrl and the position target: instead of the target jumping to
+    the new ctrl instantly, it exponentially approaches it with a 0.5s time
+    constant (~63% of the way after 0.5s, ~95% after 1.5s, ~99% after 3s).
+    kp/kv are unchanged and still hold firmly once settled -- this only
+    slows down the *transition* when ctrl changes, giving the slide a
+    damped, gradual feel instead of snapping straight to the commanded
+    position.
+
+    Wheel size/mesh is shared with 2wheel_rover/normal (./mesh/wheel.stl,
+    copied verbatim); white wheels, same as 2wheel_arm/rotate.
+
+    Self-contained (mesh lives under this robot's own directory) so it can be
+    loaded standalone via MjSpec and attached onto sim/xml/world.xml by
+    sim/world.py -- the root body has no pos offset, sim/world.py places it
+    via a spawn frame.
+
+    r_motor/l_motor drive wheel spin (the project convention: sim/simulate.py
+    only ever commands these two, and never touches r_arm_motor/l_arm_motor,
+    so with ctrl defaulting to 0 the carriage rests at the arm base).
+  -->
+  <compiler angle="radian"/>
+
+  <asset>
+    <mesh name="wheel" file="mesh/wheel.stl" scale="0.001 0.001 0.001" inertia="exact" refquat="1 0 0 0"/>
+  </asset>
+
+  <worldbody>
+    <body name="2wheel_arm">
+      <joint name="body_free_joint" type="free" damping="1"/>
+
+      <body name="main_body">
+        <!-- same cylinder as 2wheel_rover's main_body_geom (radius 0.05), but 1.5x the width: half-length 0.065*1.5=0.0975 -->
+        <geom name="main_body_geom" group="2" type="cylinder" fromto="0.0975 0 0 -0.0975 0 0" size="0.05" mass="0.5"/>
+      </body>
+
+      <site name="marker" pos="0 -0.0005 0.001" size="0.05" type="sphere" rgba="1 0 0 1"/>
+      <site name="IMU" pos="0 0 0" size="0.01" rgba="1 0 1 1"/>
+      <site name="GYRO" pos="0 0 0" size="0.01" rgba="0 1 1 1"/>
+      <site name="VELOCITY" pos="0 0 0" size="0.01" rgba="0 1 1 1"/>
+
+      <!--
+        The "wheel" mesh asset's own file-origin is not at its geometric center:
+        MuJoCo's mesh compiler bakes a +0.04 shift into every geom's x position
+        at compile time regardless of what pos is written here (confirmed
+        empirically -- 2wheel_rover/normal compensates for this with asymmetric
+        wheel mount offsets, 0.07 vs -0.15). Here we cancel it directly on the
+        geom (pos="-0.04 0 0") so the mesh's geometric center lands exactly on
+        the wheel joint's rotation axis (which passes through the wheel body's
+        own origin) -- any nonzero y/z here would put the disc off-axis and
+        make it spin eccentrically (wobble), which is not needed/wanted.
+      -->
+      <body name="r_arm" pos="0.11 0 0">
+        <geom name="r_arm_geom" group="2" type="capsule" fromto="0 0 0 0 0.16 -0.18" size="0.012" mass="0.1"/>
+        <body name="r_wheel" pos="0 0 0">
+          <joint name="r_arm_joint" type="slide" axis="0 0.16 -0.18" limited="true" range="0 0.2408319" damping="0.3" frictionloss="0.01"/>
+          <joint name="r_wheel_joint" type="hinge" axis="-1 0 0" damping="0.3" frictionloss="0.01"/>
+          <geom name="r_wheel_geom" group="2" type="mesh" mesh="wheel" mass="0.25" pos="-0.04 0 0" rgba="1 1 1 1" friction="1 0.1 0.1"/>
+        </body>
+      </body>
+
+      <body name="l_arm" pos="-0.11 0 0">
+        <geom name="l_arm_geom" group="2" type="capsule" fromto="0 0 0 0 0.16 -0.18" size="0.012" mass="0.1"/>
+        <body name="l_wheel" pos="0 0 0">
+          <joint name="l_arm_joint" type="slide" axis="0 0.16 -0.18" limited="true" range="0 0.2408319" damping="0.3" frictionloss="0.01"/>
+          <joint name="l_wheel_joint" type="hinge" axis="-1 0 0" damping="0.3" frictionloss="0.01"/>
+          <geom name="l_wheel_geom" group="2" type="mesh" mesh="wheel" mass="0.25" pos="-0.04 0 0" rgba="1 1 1 1" friction="1 0.1 0.1"/>
+        </body>
+      </body>
+
+      <!-- trailing skid: still only left/right ground contacts (wheels are colinear along x), so pitch stabilization is needed just like 2wheel_rover -->
+      <geom name="stabilizer" group="2" type="box" size="0.01 0.07 0.005" pos="0 -0.09 -0.06" euler="0.7853981634 0 0" mass="0.2"/>
+    </body>
+  </worldbody>
+
+  <actuator>
+    <intvelocity name="r_motor" joint="r_wheel_joint" gear="1" kp="1" actrange="-inf inf" ctrllimited="true" ctrlrange="-5.2359877 5.2359877" forcelimited="true" forcerange="-2.94 2.94"/>
+    <intvelocity name="l_motor" joint="l_wheel_joint" gear="1" kp="1" actrange="-inf inf" ctrllimited="true" ctrlrange="-5.2359877 5.2359877" forcelimited="true" forcerange="-2.94 2.94"/>
+    <position name="r_arm_motor" joint="r_arm_joint" gear="4.1522738" kp="100" kv="3.48" timeconst="0.5" ctrllimited="true" ctrlrange="0 1" forcelimited="true" forcerange="-30 30"/>
+    <position name="l_arm_motor" joint="l_arm_joint" gear="4.1522738" kp="100" kv="3.48" timeconst="0.5" ctrllimited="true" ctrlrange="0 1" forcelimited="true" forcerange="-30 30"/>
+  </actuator>
+
+  <sensor>
+    <accelerometer name="accelerometer" site="IMU"/>
+    <gyro name="gyro" site="GYRO"/>
+    <velocimeter name="velocimeter" site="VELOCITY"/>
+  </sensor>
+</mujoco>
