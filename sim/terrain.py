@@ -106,6 +106,58 @@ class SandTerrainConfig:
 
 
 @dataclass
+class CaveTerrainConfig:
+    """Cave floor: a bed of rounded rocks packed densely enough to cover the
+    ground almost completely, like a dry riverbed or a rubble-covered cave
+    floor -- not a few boulders scattered across open ground. Rocks are laid
+    out on a jittered grid (spacing controls how tightly they pack; jitter
+    keeps it from reading as a regular grid) rather than placed one-by-one,
+    so coverage stays dense and predictable regardless of field size. The
+    mix of rounded rocks (sphere/ellipsoid, a naturally worn rock bed) vs.
+    angular boxes (sharper rubble) is controlled by `round_ratio`. Distinct from
+    VoxelTerrainConfig's uniform grid of flat-topped box columns: here every
+    rock has an independent random size/shape/rotation and partially
+    overlaps its neighbors, forming a continuous uneven surface rather than
+    discrete steps.
+    """
+
+    field_size: tuple[float, float] = (4.0, 4.0)
+    resolution: float = 0.05  # heightfield grid spacing (m); mesh detail only
+    undulation_height: float = 0.05  # floor's own gentle unevenness (m), mostly hidden under the rocks
+    num_waves: int = 5  # fewer/broader waves than sand -- a rolling rock floor, not fine ripples
+    # average center-to-center spacing between rocks (m). This -- not a rock
+    # count -- controls density: small relative to rock size means rocks
+    # overlap and fully cover the ground; large relative to rock size means
+    # visible gaps of bare floor between rocks.
+    rock_spacing: float = 0.11
+    # each rock's grid position is randomly offset by up to this fraction of
+    # rock_spacing (per axis) so the field doesn't read as a regular grid.
+    jitter: float = 0.6
+    min_rock_size: float = 0.035  # roughly the "radius" scale of the smallest pebbles
+    max_rock_size: float = 0.13  # roughly the "radius" scale of the largest cobbles
+    # fraction of rocks that are rounded (sphere/ellipsoid) rather than
+    # angular boxes. 1.0 = an all-worn-cobble bed, 0.0 = all angular rubble.
+    round_ratio: float = 0.85
+    # fraction of each rock's height buried/overlapping into the floor and
+    # its neighbors, so rocks read as a packed bed rather than balls
+    # resting loosely on top of each other.
+    embed_range: tuple[float, float] = (0.35, 0.6)
+    seed: int = 0
+    floor_color: tuple[float, float, float, float] = (0.32, 0.3, 0.28, 1.0)
+    rock_color: tuple[float, float, float, float] = (0.42, 0.4, 0.37, 1.0)
+    # random per-rock brightness jitter around rock_color so the rock field
+    # doesn't read as one flat-colored shape stamped many times.
+    rock_color_jitter: float = 0.18
+    friction: tuple[float, float, float] = (1.0, 0.05, 0.05)
+    # kept in sync so callers can uniformly do `spawn_z = config.max_height +
+    # margin` across every terrain config type.
+    max_height: float = field(init=False, repr=False)
+
+    def __post_init__(self) -> None:
+        self.max_height = self.undulation_height + self.max_rock_size
+
+
+@dataclass
 class SlopeTerrainConfig:
     """A flat approach followed by one uniformly inclined ramp, for testing
     climbing/descending a constant grade rather than discrete bumps. The
@@ -125,7 +177,7 @@ class SlopeTerrainConfig:
     max_height: float = field(default=0.0, init=False, repr=False)
 
 
-TerrainConfig = VoxelTerrainConfig | SandTerrainConfig | SlopeTerrainConfig
+TerrainConfig = VoxelTerrainConfig | SandTerrainConfig | SlopeTerrainConfig | CaveTerrainConfig
 
 
 def _add_box_grid_terrain(
@@ -252,6 +304,138 @@ def _generate_dune_heightfield(
         height *= t * t * (3.0 - 2.0 * t)  # smoothstep: 0 at the origin, 1 past the radius
 
     return height
+
+
+def _sample_normalized_height(
+    heightfield: np.ndarray, field_size: tuple[float, float], x: float, y: float
+) -> float:
+    """Bilinearly sample a normalized (0..1) heightfield at world (x, y),
+    relative to the field's centered origin, so scattered objects can be
+    placed on top of the same undulating surface the floor geometry uses.
+    """
+    nrow, ncol = heightfield.shape
+    field_x, field_y = field_size
+    col = (x / field_x + 0.5) * (ncol - 1)
+    row = (y / field_y + 0.5) * (nrow - 1)
+    col = min(max(col, 0.0), ncol - 1)
+    row = min(max(row, 0.0), nrow - 1)
+    c0, r0 = int(math.floor(col)), int(math.floor(row))
+    c1, r1 = min(c0 + 1, ncol - 1), min(r0 + 1, nrow - 1)
+    fc, fr = col - c0, row - r0
+    h00, h10 = heightfield[r0, c0], heightfield[r0, c1]
+    h01, h11 = heightfield[r1, c0], heightfield[r1, c1]
+    return (h00 * (1 - fc) + h10 * fc) * (1 - fr) + (h01 * (1 - fc) + h11 * fc) * fr
+
+
+# The two rounded shapes, and how they're split between themselves whenever
+# a rock is rounded (config.round_ratio picks rounded vs. box; this just
+# keeps both rounded shapes in the mix instead of using only one).
+_ROCK_ROUND_TYPES = (mujoco.mjtGeom.mjGEOM_ELLIPSOID, mujoco.mjtGeom.mjGEOM_SPHERE)
+_ROCK_ROUND_WEIGHTS = (0.65, 0.35)
+
+
+def add_cave_terrain(
+    spec: mujoco.MjSpec,
+    config: CaveTerrainConfig,
+    origin: tuple[float, float] = (0.0, 0.0),
+) -> mujoco.MjsBody:
+    field_x, field_y = config.field_size
+    ncol = max(round(field_x / config.resolution) + 1, 2)
+    nrow = max(round(field_y / config.resolution) + 1, 2)
+    # spawn_clear_radius=0: unlike SandTerrainConfig, the cave floor isn't
+    # flattened/cleared around the origin -- rocks cover the whole field,
+    # including under the robot's spawn point.
+    heightfield = _generate_dune_heightfield(
+        nrow, ncol, config.field_size, config.seed, config.num_waves, 0.0
+    )
+
+    # Rigid rock floor -- unlike SandTerrainConfig there's no headroom trick
+    # or soft solref/solimp here: a cave floor is solid rock and shouldn't
+    # let a robot sink into it, so the body can sit directly at z=0 like
+    # VoxelTerrainConfig's boxes, flush with the shared invisible floor.
+    hfield_name = "cave_hfield"
+    spec.add_hfield(
+        name=hfield_name,
+        nrow=nrow,
+        ncol=ncol,
+        size=[field_x / 2, field_y / 2, config.undulation_height, 0.2],
+        userdata=heightfield.flatten().tolist(),
+    )
+
+    body = spec.worldbody.add_body(name="cave_terrain", pos=[origin[0], origin[1], 0.0])
+    body.add_geom(
+        type=mujoco.mjtGeom.mjGEOM_HFIELD,
+        hfieldname=hfield_name,
+        group=1,
+        friction=list(config.friction),
+        rgba=list(config.floor_color),
+    )
+
+    rng = random.Random(config.seed)
+    half_x, half_y = field_x / 2, field_y / 2
+    log_min, log_max = math.log(config.min_rock_size), math.log(config.max_rock_size)
+    embed_lo, embed_hi = config.embed_range
+    spacing = config.rock_spacing
+
+    # A jittered grid rather than independent random scatter: spacing sets
+    # density directly (small spacing relative to rock size means neighbors
+    # overlap and the ground reads as fully covered), and jitter breaks up
+    # the regular grid pattern so it doesn't look tiled.
+    n_x = max(round(field_x / spacing), 1)
+    n_y = max(round(field_y / spacing), 1)
+    placed = 0
+    for i in range(n_x):
+        for j in range(n_y):
+            cell_x = -half_x + spacing * (i + 0.5)
+            cell_y = -half_y + spacing * (j + 0.5)
+            x = cell_x + rng.uniform(-config.jitter, config.jitter) * spacing
+            y = cell_y + rng.uniform(-config.jitter, config.jitter) * spacing
+
+            # Log-uniform so both small pebbles and larger cobbles show up --
+            # a plain uniform draw would bunch almost everything near the
+            # top of the size range and read as one size of rock.
+            scale = math.exp(rng.uniform(log_min, log_max))
+            if rng.random() < config.round_ratio:
+                geom_type = rng.choices(_ROCK_ROUND_TYPES, weights=_ROCK_ROUND_WEIGHTS)[0]
+            else:
+                geom_type = mujoco.mjtGeom.mjGEOM_BOX
+
+            if geom_type == mujoco.mjtGeom.mjGEOM_SPHERE:
+                size = [scale, 0.0, 0.0]
+                half_height = scale
+            else:  # box or ellipsoid: a slightly irregular, non-spherical chunk
+                size = [
+                    scale * rng.uniform(0.7, 1.0),
+                    scale * rng.uniform(0.7, 1.0),
+                    scale * rng.uniform(0.6, 0.9),
+                ]
+                half_height = size[2]
+
+            floor_z = (
+                _sample_normalized_height(heightfield, config.field_size, x, y)
+                * config.undulation_height
+            )
+            embed = rng.uniform(embed_lo, embed_hi)
+            z = floor_z + half_height * (1.0 - 2.0 * embed)
+
+            jitter = 1.0 + rng.uniform(-config.rock_color_jitter, config.rock_color_jitter)
+            rgba = [min(max(c * jitter, 0.0), 1.0) for c in config.rock_color[:3]] + [
+                config.rock_color[3]
+            ]
+
+            body.add_geom(
+                name=f"cave_rock_{placed}",
+                type=geom_type,
+                size=size,
+                pos=[x, y, z],
+                euler=[rng.uniform(0, 2 * math.pi) for _ in range(3)],
+                group=1,
+                friction=list(config.friction),
+                rgba=rgba,
+            )
+            placed += 1
+
+    return body
 
 
 def add_sand_terrain(
@@ -395,4 +579,6 @@ def add_terrain(
         return add_sand_terrain(spec, config, origin)
     if isinstance(config, SlopeTerrainConfig):
         return add_slope_terrain(spec, config, origin)
+    if isinstance(config, CaveTerrainConfig):
+        return add_cave_terrain(spec, config, origin)
     raise TypeError(f"unsupported terrain config type: {type(config)!r}")

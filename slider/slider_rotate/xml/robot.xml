@@ -1,0 +1,59 @@
+<mujoco model="slider_slider_rotate">
+  <!--
+    Body is the same 0.13 total width as 2wheel_rover's main_body, split
+    at its center (x=0) into two halves joined by a single hinge about
+    the cylinder axis (center_joint). The left half is the root body; the
+    right half rotates relative to it. A slider leg is mounted on each
+    half's outer end with a slide joint only.
+
+    3 actuators total: center_motor (the one rotation motor) plus one
+    slide actuator per side. The slide actuators are named r_motor/l_motor
+    because sim/simulate.py requires actuators with those names; it sets
+    their ctrl to forward_speed (default 0 = fully extended).
+    Slider length/range/gear match 2wheel_arm/body_slider_rotate's arm
+    (0.2408319, gear = -1/0.2408319): ctrl=0 fully extended, ctrl=1 fully
+    retracted.
+  -->
+  <compiler angle="radian"/>
+
+  <worldbody>
+    <body name="slider_rotate">
+      <joint name="body_free_joint" type="free" damping="1"/>
+
+      <geom name="l_half_geom" group="2" type="cylinder" fromto="-0.0025 0 0 -0.065 0 0" size="0.05" mass="0.25"/>
+
+      <site name="IMU" pos="0 0 0" size="0.01" rgba="1 0 1 1"/>
+      <site name="GYRO" pos="0 0 0" size="0.01" rgba="0 1 1 1"/>
+      <site name="VELOCITY" pos="0 0 0" size="0.01" rgba="0 1 1 1"/>
+
+      <body name="l_slider" pos="-0.065 0 0">
+        <joint name="l_slide_joint" type="slide" axis="0 0 -1" limited="true" range="-0.2408319 0" damping="0.3" frictionloss="0.01"/>
+        <geom name="l_slider_geom" group="2" type="capsule" size="0.012" fromto="0 0 0 0 0 -0.2408319" mass="0.1" friction="1 0.1 0.1"/>
+      </body>
+
+      <body name="r_half">
+        <joint name="center_joint" type="hinge" axis="-1 0 0" damping="0.3" frictionloss="0.01"/>
+        <geom name="r_half_geom" group="2" type="cylinder" fromto="0.0025 0 0 0.065 0 0" size="0.05" mass="0.25"/>
+        <!-- visual-only disc in the center gap, marks the rotating joint -->
+        <geom name="center_disc" group="2" type="cylinder" fromto="0.002 0 0 -0.002 0 0" size="0.055" mass="0.001" contype="0" conaffinity="0" rgba="0.1 0.85 0.2 1"/>
+
+        <body name="r_slider" pos="0.065 0 0">
+          <joint name="r_slide_joint" type="slide" axis="0 0 -1" limited="true" range="-0.2408319 0" damping="0.3" frictionloss="0.01"/>
+          <geom name="r_slider_geom" group="2" type="capsule" size="0.012" fromto="0 0 0 0 0 -0.2408319" mass="0.1" friction="1 0.1 0.1"/>
+        </body>
+      </body>
+    </body>
+  </worldbody>
+
+  <actuator>
+    <intvelocity name="center_motor" joint="center_joint" gear="1" kp="1" actrange="-inf inf" ctrllimited="true" ctrlrange="-5.2359877 5.2359877" forcelimited="true" forcerange="-2.94 2.94"/>
+    <position name="r_motor" joint="r_slide_joint" gear="-4.1522738" kp="100" kv="3.48" timeconst="0.5" ctrllimited="true" ctrlrange="0 1" forcelimited="true" forcerange="-30 30"/>
+    <position name="l_motor" joint="l_slide_joint" gear="-4.1522738" kp="100" kv="3.48" timeconst="0.5" ctrllimited="true" ctrlrange="0 1" forcelimited="true" forcerange="-30 30"/>
+  </actuator>
+
+  <sensor>
+    <accelerometer name="accelerometer" site="IMU"/>
+    <gyro name="gyro" site="GYRO"/>
+    <velocimeter name="velocimeter" site="VELOCITY"/>
+  </sensor>
+</mujoco>

@@ -15,7 +15,7 @@ import requests
 
 # 圧縮したい動画をここに入れる。http(s)://... のURLでも、
 # ローカルファイルパス（WSLの /mnt/c/... でもWindows形式の C:/... でもよい）でも指定できる。
-VIDEO_URL = "C:/Users/ms8/Videos/画面録画/movie.mp4"
+VIDEO_URL = "slider/slider_rotate/movie.mp4"
 
 # 圧縮の強さ（CRF値）。18=高画質/大きい 〜 32=低画質/小さい。23前後が標準的な目安。
 CRF = 28

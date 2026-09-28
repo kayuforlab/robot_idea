@@ -1,5 +1,5 @@
 from sim.simulate import run
-from sim.terrain import SandTerrainConfig, SlopeTerrainConfig, VoxelTerrainConfig
+from sim.terrain import CaveTerrainConfig, SandTerrainConfig, SlopeTerrainConfig, VoxelTerrainConfig
 from sim.world import build_model
 
 
@@ -8,12 +8,18 @@ from sim.world import build_model
 # ROBOT_NAME = "2wheel_rover/normal"
 # ROBOT_NAME = "2wheel_rover/one_way_grouser"
 # ROBOT_NAME = "2wheel_rover/fan"
+ROBOT_NAME = "2wheel_rover/tripod"
+# ROBOT_NAME = "2wheel_rover/tripod_eccentric"
 
 #armがある2輪
 # ROBOT_NAME = "2wheel_arm/rotate"
 # ROBOT_NAME = "2wheel_arm/wheel_slider"
 # ROBOT_NAME = "2wheel_arm/body_slider"
-ROBOT_NAME = "2wheel_arm/body_slider_rotate"
+# ROBOT_NAME = "2wheel_arm/body_slider_rotate"
+
+#bodyが中央で2分割され中央の1モータで円柱軸まわりに回転、左右の端に伸縮スライダーが付く(アクチュエータ計3)
+ROBOT_NAME = "slider/slider_rotate"
+
 
 
 #砂地形
@@ -43,6 +49,23 @@ TERRAIN_CONFIG = VoxelTerrainConfig(
     max_height=0.05,
     seed=0,
 )
+
+#洞窟
+# undulation_height: 床自体の緩やかな起伏の高さ
+# rock_spacing: 岩を並べる格子の間隔。岩サイズに対して小さいほど隙間なく密に敷き詰められる
+# jitter: 格子から各岩をずらす量
+# min_rock_size / max_rock_size: 岩サイズの範囲
+# round_ratio: 丸い岩（球・楕円体）の存在比率。
+# TERRAIN_CONFIG = CaveTerrainConfig(
+#     field_size=(4.0, 4.0),
+#     undulation_height=0.05,
+#     rock_spacing=0.1,
+#     jitter=0.6,
+#     min_rock_size=0.035,
+#     max_rock_size=0.2,
+#     round_ratio=1,
+#     seed=0,
+# )
 
 
 def main():

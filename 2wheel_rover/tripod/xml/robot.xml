@@ -1,0 +1,91 @@
+<mujoco model="2wheel_rover_tripod">
+  <!--
+    Differential-drive 2-wheel rover, but the wheels are replaced with a
+    3-rod "tripod" spoke wheel: three rods emanate from the hinge's
+    rotation center, spaced 120 deg apart around the wheel, each tilted
+    30 deg away from the purely-radial direction toward the body's
+    outside (i.e. each rod leans axially outward from the wheel plane,
+    not just poking straight out radially). The rod's radial component
+    (its reach as seen from the side, ignoring the axial lean) is kept
+    equal to the plain wheel's 0.075m radius, so the side-view silhouette
+    matches the other 2wheel_rover variants.
+
+    Derived from ../../normal/xml/robot.xml (same body/joint/actuator
+    layout), with the mesh-wheel geom swapped for 3 capsule geoms per
+    wheel. No mesh asset needed, so this file has no ./mesh dependency.
+
+    Note on wheel mount x: ../../normal (and fan/one_way_grouser) use
+    r_wheel pos 0.07 / l_wheel pos -0.15 -- that asymmetry exists only
+    to cancel out MuJoCo's mesh compiler auto-recentering the wheel.stl
+    mesh (baking a +0.04 shift into its geom position), so the actual
+    wheel visual ends up symmetric (+-0.11) despite the asymmetric body
+    pos. Since this tripod's rods are plain primitive geoms with no such
+    baked shift, that compensation doesn't apply here: l_wheel is mounted
+    at -0.07 (mirroring r_wheel's 0.07), giving a symmetric 0.005m gap
+    from main_body's edge (0.065) on both sides.
+
+    Loaded standalone via MjSpec and attached onto sim/xml/world.xml by
+    sim/world.py, so the root body has no pos offset -- sim/world.py
+    places it via a spawn frame.
+  -->
+  <compiler angle="radian"/>
+
+  <worldbody>
+    <body name="2wheel_rover">
+      <joint name="body_free_joint" type="free" damping="1"/>
+
+      <body name="main_body">
+        <geom name="main_body_geom" group="2" type="cylinder" fromto="0.065 0 0 -0.065 0 0" size="0.05" mass="0.5"/>
+      </body>
+
+      <site name="marker" pos="0 -0.0005 0.001" size="0.05" type="sphere" rgba="1 0 0 1"/>
+      <site name="IMU" pos="0 0 0" size="0.01" rgba="1 0 1 1"/>
+      <site name="GYRO" pos="0 0 0" size="0.01" rgba="0 1 1 1"/>
+      <site name="VELOCITY" pos="0 0 0" size="0.01" rgba="0 1 1 1"/>
+
+      <!--
+        Rod tips (relative to each wheel's own rotation center, which is
+        the wheel body's local origin -- the hinge joint below has no
+        "pos" so it anchors there too):
+        the rod is tilted 30 deg from radial toward the body-outside
+        axial direction, but its *radial* component (i.e. the distance
+        from the rotation axis as seen from the side, ignoring the
+        axial offset) is kept at 0.075m -- the same as the plain wheel's
+        radius in ../../normal/xml/robot.xml -- so the side-view silhouette
+        matches the other 2wheel_rover variants. That means the rod's
+        total length is longer than 0.075m: 0.075/cos(30deg) = 0.08660.
+        radial component (fixed)      = 0.075
+        axial  component = 0.075*tan(30deg) = 0.04330
+        3 rods spaced 120 deg apart in the wheel's y-z plane.
+      -->
+      <body name="r_wheel" pos="0.07 0 0">
+        <joint name="r_wheel_joint" type="hinge" axis="-1 0 0" damping="0.3" frictionloss="0.01"/>
+        <geom name="r_wheel_hub" group="2" type="sphere" size="0.012" mass="0.02" friction="1 0.1 0.1"/>
+        <geom name="r_wheel_rod0" group="2" type="capsule" size="0.006" fromto="0 0 0  0.04330 0.075 0" mass="0.0767" friction="1 0.1 0.1"/>
+        <geom name="r_wheel_rod1" group="2" type="capsule" size="0.006" fromto="0 0 0  0.04330 -0.0375 0.06495" mass="0.0767" friction="1 0.1 0.1"/>
+        <geom name="r_wheel_rod2" group="2" type="capsule" size="0.006" fromto="0 0 0  0.04330 -0.0375 -0.06495" mass="0.0767" friction="1 0.1 0.1"/>
+      </body>
+      <body name="l_wheel" pos="-0.07 0 0">
+        <joint name="l_wheel_joint" type="hinge" axis="-1 0 0" damping="0.3" frictionloss="0.01"/>
+        <geom name="l_wheel_hub" group="2" type="sphere" size="0.012" mass="0.02" friction="1 0.1 0.1"/>
+        <geom name="l_wheel_rod0" group="2" type="capsule" size="0.006" fromto="0 0 0  -0.04330 0.075 0" mass="0.0767" friction="1 0.1 0.1"/>
+        <geom name="l_wheel_rod1" group="2" type="capsule" size="0.006" fromto="0 0 0  -0.04330 -0.0375 0.06495" mass="0.0767" friction="1 0.1 0.1"/>
+        <geom name="l_wheel_rod2" group="2" type="capsule" size="0.006" fromto="0 0 0  -0.04330 -0.0375 -0.06495" mass="0.0767" friction="1 0.1 0.1"/>
+      </body>
+
+      <!-- trailing skid: keeps the rover from pitching over since it only has left/right wheels -->
+      <geom name="stabilizer" group="2" type="box" size="0.01 0.07 0.005" pos="0 -0.049497 -0.049497" euler="0.7853981634 0 0" mass="0.2"/>
+    </body>
+  </worldbody>
+
+  <actuator>
+    <intvelocity name="r_motor" joint="r_wheel_joint" gear="1" kp="1" actrange="-inf inf" ctrllimited="true" ctrlrange="-5.2359877 5.2359877" forcelimited="true" forcerange="-2.94 2.94"/>
+    <intvelocity name="l_motor" joint="l_wheel_joint" gear="1" kp="1" actrange="-inf inf" ctrllimited="true" ctrlrange="-5.2359877 5.2359877" forcelimited="true" forcerange="-2.94 2.94"/>
+  </actuator>
+
+  <sensor>
+    <accelerometer name="accelerometer" site="IMU"/>
+    <gyro name="gyro" site="GYRO"/>
+    <velocimeter name="velocimeter" site="VELOCITY"/>
+  </sensor>
+</mujoco>
