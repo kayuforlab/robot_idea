@@ -8,7 +8,7 @@ from sim.world import build_model
 # ROBOT_NAME = "2wheel_rover/normal"
 # ROBOT_NAME = "2wheel_rover/one_way_grouser"
 # ROBOT_NAME = "2wheel_rover/fan"
-ROBOT_NAME = "2wheel_rover/tripod"
+# ROBOT_NAME = "2wheel_rover/tripod"
 # ROBOT_NAME = "2wheel_rover/tripod_eccentric"
 
 #armがある2輪
@@ -18,7 +18,10 @@ ROBOT_NAME = "2wheel_rover/tripod"
 # ROBOT_NAME = "2wheel_arm/body_slider_rotate"
 
 #bodyが中央で2分割され中央の1モータで円柱軸まわりに回転、左右の端に伸縮スライダーが付く(アクチュエータ計3)
-ROBOT_NAME = "slider/slider_rotate"
+# ROBOT_NAME = "slider/slider_rotate"
+
+#真ん中に車輪1つ、その左右に車輪中心まわりに独立回転する伸縮棒
+ROBOT_NAME = "one_wheel/slider"
 
 
 
