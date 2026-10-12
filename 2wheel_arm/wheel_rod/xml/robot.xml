@@ -1,0 +1,99 @@
+<mujoco model="2wheel_arm_wheel_rod">
+  <!--
+    2wheel_rover/normal (body, plain wheels, no eccentricity) with one extra
+    mechanism: each wheel has a rod inside it, 80% as long as the wheel diameter
+    (0.12 m vs 0.15 m), that a prismatic joint pushes out of the wheel along
+    the rod's own axis.
+
+    The body, wheel mounts, wheel mesh and stabilizer are copied unchanged from
+    2wheel_rover/normal. The mesh's geometric center ends up at x=+-0.11,
+    y=0, z=0 in the body frame (MuJoCo bakes a +0.04 x shift into the mesh
+    geom), so the rods are placed on that axis.
+
+    Each rod is a child of its wheel body, so it spins together with the wheel
+    (the slide axis is fixed in the wheel frame and turns with it). It slides
+    along that wheel-frame y axis only; it points front/rear (+-y of the body)
+    when the wheel is at angle 0 and swings around as the wheel rotates. At
+    ctrl=0 each rod sits centered in its wheel (spanning 0.12 m, inside the
+    0.15 m diameter). The joint range of +-0.135 m (wheel radius 0.075 + rod
+    half-length 0.06) lets the rod slide until its far end reaches the wheel's
+    edge. The rod body sits at x=0.04 in the wheel body frame because the
+    wheel mesh's center is shifted +0.04 in x (see above).
+
+    Contact between each rod and its wheel is excluded automatically (parent
+    and child body); the main body is excluded explicitly. The rod still
+    collides with the ground and obstacles when it sticks out.
+
+    r_rod_slider/l_rod_slider are <position> actuators with ctrl in meters
+    (offset from the centered position).
+
+    The slide joints carry a heavy damper (damping=40 N*s/m, on top of the
+    actuator's kv=6) so that the rods do not shoot out: a full-range step
+    (ctrl=0.135) peaks at about 0.29 m/s (it was 1.6 m/s with damping 0.3),
+    reaching 95% of the target in about 1.3 s with no overshoot. The rods are
+    light grey (0.8), a bit darker than white.
+
+    Self-contained (mesh under this robot's directory) and loaded standalone
+    via MjSpec by sim/world.py; the root body has no pos offset.
+    r_motor/l_motor drive the wheels, as in every robot of this project.
+  -->
+  <compiler angle="radian"/>
+
+  <asset>
+    <mesh name="wheel" file="mesh/wheel.stl" scale="0.001 0.001 0.001" inertia="exact" refquat="1 0 0 0"/>
+  </asset>
+
+  <worldbody>
+    <body name="2wheel_rod">
+      <joint name="body_free_joint" type="free" damping="1"/>
+
+      <body name="main_body">
+        <geom name="main_body_geom" group="2" type="cylinder" fromto="0.065 0 0 -0.065 0 0" size="0.05" mass="0.5"/>
+      </body>
+
+      <site name="marker" pos="0 -0.0005 0.001" size="0.05" type="sphere" rgba="1 0 0 1"/>
+      <site name="IMU" pos="0 0 0" size="0.01" rgba="1 0 1 1"/>
+      <site name="GYRO" pos="0 0 0" size="0.01" rgba="0 1 1 1"/>
+      <site name="VELOCITY" pos="0 0 0" size="0.01" rgba="0 1 1 1"/>
+
+      <body name="r_wheel" pos="0.07 0 0">
+        <joint name="r_wheel_joint" type="hinge" axis="-1 0 0" damping="0.3" frictionloss="0.01"/>
+        <geom name="r_wheel_geom" group="2" type="mesh" mesh="wheel" mass="0.25" friction="1 0.1 0.1"/>
+        <body name="r_rod" pos="0.04 0 0">
+          <joint name="r_rod_joint" type="slide" axis="0 1 0" limited="true" range="-0.135 0.135" damping="40" frictionloss="0.01"/>
+          <geom name="r_rod_geom" group="2" type="cylinder" fromto="0 -0.06 0 0 0.06 0" size="0.01" mass="0.08" rgba="0.8 0.8 0.8 1"/>
+        </body>
+      </body>
+      <body name="l_wheel" pos="-0.15 0 0">
+        <joint name="l_wheel_joint" type="hinge" axis="-1 0 0" damping="0.3" frictionloss="0.01"/>
+        <geom name="l_wheel_geom" group="2" type="mesh" mesh="wheel" mass="0.25" friction="1 0.1 0.1"/>
+        <body name="l_rod" pos="0.04 0 0">
+          <joint name="l_rod_joint" type="slide" axis="0 1 0" limited="true" range="-0.135 0.135" damping="40" frictionloss="0.01"/>
+          <geom name="l_rod_geom" group="2" type="cylinder" fromto="0 -0.06 0 0 0.06 0" size="0.01" mass="0.08" rgba="0.8 0.8 0.8 1"/>
+        </body>
+      </body>
+
+
+      <!-- trailing skid: keeps the rover from pitching over since it only has left/right wheels -->
+      <geom name="stabilizer" group="2" type="box" size="0.01 0.07 0.005" pos="0 -0.049497 -0.049497" euler="0.7853981634 0 0" mass="0.2"/>
+    </body>
+  </worldbody>
+
+  <contact>
+    <exclude body1="r_rod" body2="main_body"/>
+    <exclude body1="l_rod" body2="main_body"/>
+  </contact>
+
+  <actuator>
+    <intvelocity name="r_motor" joint="r_wheel_joint" gear="1" kp="1" actrange="-inf inf" ctrllimited="true" ctrlrange="-5.2359877 5.2359877" forcelimited="true" forcerange="-2.94 2.94"/>
+    <intvelocity name="l_motor" joint="l_wheel_joint" gear="1" kp="1" actrange="-inf inf" ctrllimited="true" ctrlrange="-5.2359877 5.2359877" forcelimited="true" forcerange="-2.94 2.94"/>
+    <position name="r_rod_slider" joint="r_rod_joint" gear="1" kp="100" kv="6" ctrllimited="true" ctrlrange="-0.135 0.135" forcelimited="true" forcerange="-30 30"/>
+    <position name="l_rod_slider" joint="l_rod_joint" gear="1" kp="100" kv="6" ctrllimited="true" ctrlrange="-0.135 0.135" forcelimited="true" forcerange="-30 30"/>
+  </actuator>
+
+  <sensor>
+    <accelerometer name="accelerometer" site="IMU"/>
+    <gyro name="gyro" site="GYRO"/>
+    <velocimeter name="velocimeter" site="VELOCITY"/>
+  </sensor>
+</mujoco>

@@ -11,13 +11,19 @@ import mujoco.viewer
 def run(model: mujoco.MjModel, forward_speed: float = 0.0) -> None:
     """Step `model` in a viewer, driving both wheels forward at a constant
     angular velocity as a minimal smoke-test of the robot on the terrain.
+    Robots without r_motor/l_motor (legged ones) hold their keyframe pose.
     """
     data = mujoco.MjData(model)
 
-    r_motor = model.actuator("r_motor").id
-    l_motor = model.actuator("l_motor").id
-    data.ctrl[r_motor] = forward_speed
-    data.ctrl[l_motor] = forward_speed
+    names = {model.actuator(i).name for i in range(model.nu)}
+    if "r_motor" in names and "l_motor" in names:
+        data.ctrl[model.actuator("r_motor").id] = forward_speed
+        data.ctrl[model.actuator("l_motor").id] = forward_speed
+    elif model.nkey > 0:
+        # legged robots (menagerie/*): start in the keyframe's standing joint
+        # angles and hold them (qpos[:7] is the free base, kept at the spawn pose)
+        data.qpos[7:] = model.key_qpos[0][7:]
+        data.ctrl[:] = model.key_ctrl[0]
 
     with mujoco.viewer.launch_passive(model, data) as viewer:
         while viewer.is_running():

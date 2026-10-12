@@ -40,6 +40,12 @@ def build_model(
         raise FileNotFoundError(f"no robot xml found at {robot_path}")
     robot_spec = mujoco.MjSpec.from_file(str(robot_path))
 
+    # attach() keeps the parent's <option>, so a robot that needs a particular
+    # integrator (menagerie/unitree_g1 falls over under the default Euler one)
+    # has to hand it over explicitly
+    if robot_spec.option.integrator != mujoco.mjtIntegrator.mjINT_EULER:
+        world_spec.option.integrator = robot_spec.option.integrator
+
     spawn_frame = world_spec.worldbody.add_frame(pos=list(spawn_pos))
     world_spec.attach(robot_spec, prefix="", frame=spawn_frame)
 

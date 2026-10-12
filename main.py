@@ -14,14 +14,21 @@ from sim.world import build_model
 #armがある2輪
 # ROBOT_NAME = "2wheel_arm/rotate"
 # ROBOT_NAME = "2wheel_arm/wheel_slider"
+ROBOT_NAME = "2wheel_arm/wheel_rod"
 # ROBOT_NAME = "2wheel_arm/body_slider"
 # ROBOT_NAME = "2wheel_arm/body_slider_rotate"
+
+#MuJoCo Menagerie配布のロボット(Unitree)。制御器は無く、キーフレームの立位姿勢を保つだけ
+#4足歩行
+# ROBOT_NAME = "menagerie/unitree_go2"
+#人型(倒れずに立てるのは平らな地形のみ)
+# ROBOT_NAME = "menagerie/unitree_g1"
 
 #bodyが中央で2分割され中央の1モータで円柱軸まわりに回転、左右の端に伸縮スライダーが付く(アクチュエータ計3)
 # ROBOT_NAME = "slider/slider_rotate"
 
 #真ん中に車輪1つ、その左右に車輪中心まわりに独立回転する伸縮棒
-ROBOT_NAME = "one_wheel/slider"
+# ROBOT_NAME = "one_wheel/slider"
 
 
 
